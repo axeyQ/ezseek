@@ -1,5 +1,5 @@
-import connectDB from '../../../../database/connectDB';
-import Table from '../../../../models/Table';
+import connectDB from '../../../../../database/connectDB';
+import Table from '../../../../../database/models/Table';
 
 export async function GET() {
   try {

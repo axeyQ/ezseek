@@ -1,5 +1,5 @@
 import connectDB from '../../../../../database/connectDB';
-import Menu from '../../../../../models/Menu';
+import Menu from '../../../../../database/models/Menu';
 
 export async function GET() {
   try {
