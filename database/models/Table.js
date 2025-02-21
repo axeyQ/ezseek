@@ -1,3 +1,4 @@
+// database/models/Table.js
 import mongoose from 'mongoose';
 
 const tableSchema = new mongoose.Schema({
@@ -21,17 +22,18 @@ const tableSchema = new mongoose.Schema({
     enum: ['indoor', 'outdoor', 'balcony'],
     default: 'indoor'
   },
-  currentOrder: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Order',
-    default: null
-  },
   isActive: {
     type: Boolean,
     default: true
+  },
+  currentOrder: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
 const Table = mongoose.models.Table || mongoose.model('Table', tableSchema);

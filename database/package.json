@@ -9,6 +9,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "aws4": "^1.13.2",
+    "dotenv": "^16.4.7",
+    "ioredis": "^5.5.0",
     "mongodb": "^6.13.0",
     "mongoose": "^8.10.1"
   }

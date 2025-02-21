@@ -1,5 +1,6 @@
 import localFont from "next/font/local";
 import "./globals.css";
+import OfflineStatus from "@/components/ui/offlineStatus";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -24,7 +25,9 @@ export default function RootLayout({ children }) {
         <header className="bg-blue-600 text-white p-4">
           <h1 className="text-2xl font-bold">POS System</h1>
         </header>
-        <main className="p-4">{children}</main>
+        <main className="p-4">{children}
+          <OfflineStatus />
+        </main>
       </body>
     </html>
   );

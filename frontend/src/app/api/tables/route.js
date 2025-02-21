@@ -1,12 +1,15 @@
+// app/api/tables/route.js
 import connectDB from '../../../../../database/connectDB';
 import Table from '../../../../../database/models/Table';
+import '../../../../../database/models/Order';  // Import Order model to ensure it's registered
 
 export async function GET() {
   try {
     await connectDB();
     const tables = await Table.find({ isActive: true })
       .sort('tableNumber')
-      .populate('currentOrder');
+      .populate('currentOrder')
+      .lean();  // Use lean() for better performance
     return Response.json(tables);
   } catch (error) {
     console.error('GET Error:', error);
@@ -44,7 +47,7 @@ export async function PUT(request) {
       id,
       data,
       { new: true }
-    );
+    ).populate('currentOrder');
     
     if (!updatedTable) {
       return Response.json({ error: 'Table not found' }, { status: 404 });

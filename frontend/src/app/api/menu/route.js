@@ -1,10 +1,11 @@
+// app/api/menu/route.js
 import connectDB from '../../../../../database/connectDB';
 import Menu from '../../../../../database/models/Menu';
 
 export async function GET() {
   try {
     await connectDB();
-    const menuItems = await Menu.find({ isAvailable: true }).sort('category');
+    const menuItems = await Menu.find().sort('category');
     return Response.json(menuItems);
   } catch (error) {
     console.error('GET Error:', error);
@@ -17,14 +18,7 @@ export async function POST(request) {
     await connectDB();
     const data = await request.json();
     
-    const newMenuItem = await Menu.create({
-      name: data.name,
-      description: data.description,
-      price: data.price,
-      category: data.category,
-      isAvailable: data.isAvailable ?? true
-    });
-
+    const newMenuItem = await Menu.create(data);
     return Response.json(newMenuItem, { status: 201 });
   } catch (error) {
     console.error('POST Error:', error);
@@ -41,14 +35,8 @@ export async function PUT(request) {
     
     const updatedMenuItem = await Menu.findByIdAndUpdate(
       id,
-      {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        category: data.category,
-        isAvailable: data.isAvailable
-      },
-      { new: true }
+      { ...data, updatedAt: new Date() },
+      { new: true, runValidators: true }
     );
     
     if (!updatedMenuItem) {

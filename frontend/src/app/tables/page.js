@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { socketClient } from '@/services/socketClient';
 
 export default function Tables() {
   const [tables, setTables] = useState([]);
@@ -13,10 +14,7 @@ export default function Tables() {
     location: 'indoor'
   });
 
-  useEffect(() => {
-    fetchTables();
-  }, []);
-
+  // Define fetchTables before using it in useEffect
   const fetchTables = async () => {
     try {
       const response = await fetch('/api/tables');
@@ -29,6 +27,36 @@ export default function Tables() {
       setLoading(false);
     }
   };
+
+  const handleTableUpdate = (data) => {
+    setTables(prevTables => 
+      prevTables.map(table => 
+        table._id === data.tableId 
+          ? { ...table, status: data.status, currentOrder: data.orderId }
+          : table
+      )
+    );
+  };
+
+  const handleOrderUpdate = (data) => {
+    setTables(prevTables => 
+      prevTables.map(table => 
+        table.currentOrder?._id === data.orderId 
+          ? { ...table, currentOrder: { ...table.currentOrder, ...data } }
+          : table
+      )
+    );
+  };
+
+  useEffect(() => {
+    const socket = socketClient.connect('staff');
+    socket.on('table_status_changed', handleTableUpdate);
+    socket.on('order_updated', handleOrderUpdate);
+    
+    fetchTables();
+    
+    return () => socket.disconnect();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
