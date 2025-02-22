@@ -1,12 +1,8 @@
-// database/models/Rider.js
+// src/models/Rider.js
 import mongoose from 'mongoose';
 
 const riderSchema = new mongoose.Schema({
   name: {
-    type: String,
-    required: true
-  },
-  phoneNumber: {
     type: String,
     required: true
   },
@@ -15,33 +11,29 @@ const riderSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  phoneNumber: {
+    type: String,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['AVAILABLE', 'BUSY', 'OFFLINE'],
+    default: 'AVAILABLE'
+  },
+  deliveriesCompleted: {
+    type: Number,
+    default: 0
+  },
   currentLocation: {
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point'
+      required: true
     },
     coordinates: {
       type: [Number],
       required: true
     }
-  },
-  status: {
-    type: String,
-    enum: ['AVAILABLE', 'BUSY', 'OFFLINE'],
-    default: 'OFFLINE'
-  },
-  currentDelivery: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Delivery'
-  },
-  rating: {
-    type: Number,
-    default: 0
-  },
-  deliveriesCompleted: {
-    type: Number,
-    default: 0
   }
 }, {
   timestamps: true
