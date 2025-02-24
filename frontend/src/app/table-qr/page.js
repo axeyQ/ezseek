@@ -1,12 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function TableManagement() {
+export default function TableQRManagement() {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     fetchTables();
@@ -14,8 +16,13 @@ export default function TableManagement() {
 
   const fetchTables = async () => {
     try {
-      const response = await fetch('/api/tables/qr');
-      if (!response.ok) throw new Error('Failed to fetch tables');
+      setLoading(true);
+      const response = await fetch('/api/tables');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch tables');
+      }
+      
       const data = await response.json();
       setTables(data);
     } catch (err) {
@@ -25,7 +32,7 @@ export default function TableManagement() {
     }
   };
 
-  const generateQR = async (tableId) => {
+  const generateQRCode = async (tableId) => {
     try {
       const response = await fetch('/api/tables/qr', {
         method: 'POST',
@@ -35,9 +42,13 @@ export default function TableManagement() {
         body: JSON.stringify({ tableId })
       });
 
-      if (!response.ok) throw new Error('Failed to generate QR code');
+      if (!response.ok) {
+        throw new Error('Failed to generate QR code');
+      }
+
       const updatedTable = await response.json();
       
+      // Update tables list with the new QR code
       setTables(prevTables =>
         prevTables.map(table =>
           table._id === updatedTable._id ? updatedTable : table
@@ -47,14 +58,21 @@ export default function TableManagement() {
       return updatedTable;
     } catch (err) {
       setError(err.message);
+      return null;
     }
   };
 
   const handleShowQR = async (table) => {
     setSelectedTable(table);
+    
+    // Generate QR code if it doesn't exist
     if (!table.qrCode?.image) {
-      await generateQR(table._id);
+      const updatedTable = await generateQRCode(table._id);
+      if (updatedTable) {
+        setSelectedTable(updatedTable);
+      }
     }
+    
     setShowQRModal(true);
   };
 
@@ -74,29 +92,139 @@ export default function TableManagement() {
         <head>
           <title>Table ${table.tableNumber} QR Code</title>
           <style>
-            body { 
+            body {
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: center;
               height: 100vh;
               margin: 0;
+              font-family: Arial, sans-serif;
             }
-            img { max-width: 300px; }
-            .info { margin-top: 20px; text-align: center; }
+            .qr-container {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              padding: 20px;
+              border: 1px solid #ccc;
+              border-radius: 10px;
+              background-color: white;
+            }
+            img {
+              max-width: 300px;
+              margin-bottom: 20px;
+            }
+            .info {
+              text-align: center;
+            }
+            .instructions {
+              margin-top: 20px;
+              font-size: 14px;
+              color: #666;
+              max-width: 300px;
+              text-align: center;
+            }
           </style>
         </head>
         <body>
-          <img src="${table.qrCode.image}" alt="Table QR Code">
-          <div class="info">
-            <h2>Table ${table.tableNumber}</h2>
-            <p>Scan to place order</p>
+          <div class="qr-container">
+            <img src="${table.qrCode.image}" alt="Table QR Code">
+            <div class="info">
+              <h2>Table ${table.tableNumber}</h2>
+              <p>Scan to place your order</p>
+            </div>
+            <div class="instructions">
+              Scan this QR code with your phone camera to access the menu and place your order directly from your device.
+            </div>
           </div>
         </body>
       </html>
     `);
     printWindow.document.close();
-    printWindow.print();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+  };
+
+  const printAllQRCodes = async () => {
+    try {
+      // Generate QR codes for any tables that don't have them
+      for (const table of tables) {
+        if (!table.qrCode?.image) {
+          await generateQRCode(table._id);
+        }
+      }
+
+      // Refresh tables to get the latest QR codes
+      await fetchTables();
+
+      // Create print window with all QR codes
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>All Table QR Codes</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+              }
+              .qr-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+                page-break-inside: avoid;
+              }
+              .qr-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 20px;
+                border: 1px solid #ccc;
+                border-radius: 10px;
+                page-break-inside: avoid;
+              }
+              img {
+                max-width: 200px;
+                margin-bottom: 10px;
+              }
+              .info {
+                text-align: center;
+                margin-top: 10px;
+              }
+              @media print {
+                .qr-item {
+                  page-break-inside: avoid;
+                  break-inside: avoid;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="qr-grid">
+              ${tables.map(table => `
+                <div class="qr-item">
+                  <img src="${table.qrCode?.image}" alt="Table ${table.tableNumber} QR Code">
+                  <div class="info">
+                    <h2>Table ${table.tableNumber}</h2>
+                    <p>Scan to place your order</p>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // QR Modal Component
@@ -115,7 +243,10 @@ export default function TableManagement() {
             className="w-64 h-64 mb-4"
           />
           <p className="text-sm text-gray-600 mb-2">
-            Generated: {new Date(table.qrCode?.generatedAt).toLocaleDateString()}
+            Scan this QR code to access the ordering page
+          </p>
+          <p className="text-xs text-gray-500 mb-2">
+            Generated: {table.qrCode?.generatedAt ? new Date(table.qrCode.generatedAt).toLocaleDateString() : 'N/A'}
           </p>
         </div>
 
@@ -142,7 +273,21 @@ export default function TableManagement() {
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Table Management</h1>
+        <h1 className="text-2xl font-bold">Table QR Codes</h1>
+        <div className="space-x-2">
+          <button
+            onClick={printAllQRCodes}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Print All QR Codes
+          </button>
+          <button
+            onClick={() => router.push('/tables')}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Manage Tables
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -153,7 +298,7 @@ export default function TableManagement() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {tables.map(table => (
+        {tables.filter(table => table.isActive).map(table => (
           <div key={table._id} className="border rounded-lg p-4">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Table {table.tableNumber}</h2>
@@ -167,7 +312,7 @@ export default function TableManagement() {
             </div>
 
             <div className="text-sm text-gray-600 mb-4">
-            <p>Capacity: {table.capacity} people</p>
+              <p>Capacity: {table.capacity} people</p>
               <p>Location: {table.location}</p>
               {table.qrCode?.generatedAt && (
                 <p>QR Last Generated: {new Date(table.qrCode.generatedAt).toLocaleDateString()}</p>
@@ -182,7 +327,7 @@ export default function TableManagement() {
                 {table.qrCode?.image ? 'View QR' : 'Generate QR'}
               </button>
               <button
-                onClick={() => generateQR(table._id)}
+                onClick={() => generateQRCode(table._id)}
                 className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
               >
                 Regenerate QR
@@ -191,45 +336,6 @@ export default function TableManagement() {
           </div>
         ))}
       </div>
-
-      {/* Add New Table Form */}
-      <form className="mt-8 bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Add New Table</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Table Number</label>
-            <input
-              type="number"
-              min="1"
-              className="w-full p-2 border rounded"
-              // Add necessary state and handlers
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Capacity</label>
-            <input
-              type="number"
-              min="1"
-              className="w-full p-2 border rounded"
-              // Add necessary state and handlers
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Location</label>
-            <select className="w-full p-2 border rounded">
-              <option value="indoor">Indoor</option>
-              <option value="outdoor">Outdoor</option>
-              <option value="balcony">Balcony</option>
-            </select>
-          </div>
-        </div>
-        <button
-          type="submit"
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Add Table
-        </button>
-      </form>
 
       {/* QR Code Modal */}
       {showQRModal && selectedTable && (
@@ -241,9 +347,6 @@ export default function TableManagement() {
           }}
         />
       )}
-
-      {/* Table Edit Modal */}
-      {/* Add your table edit modal here if needed */}
     </div>
   );
 }

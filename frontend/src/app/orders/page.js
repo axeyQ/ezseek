@@ -110,7 +110,23 @@ const handleOfflineOrder = async (orderData) => {
       websocketService.disconnect();
     };
   }, []);
-
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        await initializeData();
+        initializeWebSocket();
+      } catch (error) {
+        console.error('Initialization error:', error);
+        setError('Failed to initialize application');
+      }
+    };
+  
+    initialize();
+  
+    return () => {
+      websocketService.disconnect();
+    };
+  }, []);
   const initializeData = async () => {
     try {
       setLoading(true);
@@ -127,15 +143,43 @@ const handleOfflineOrder = async (orderData) => {
   };
 
   const initializeWebSocket = () => {
-    const socket = websocketService.connect();
-
-    socket.on('order:update', (updatedOrder) => {
-      fetchOrders();
-    });
-
-    socket.on('table:update', (updatedTable) => {
-      fetchTables();
-    });
+    try {
+      const socket = websocketService.connect();
+  
+      // Listen for order updates
+      socket.on('order:update', (updatedOrder) => {
+        console.log('Order updated:', updatedOrder);
+        fetchOrders(); // Refresh orders list
+      });
+  
+      // Listen for table updates
+      socket.on('table:update', (updatedTable) => {
+        console.log('Table updated:', updatedTable);
+        fetchTables(); // Refresh tables list
+      });
+  
+      // Listen for connection status
+      socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
+      });
+  
+      socket.on('disconnect', () => {
+        console.log('Disconnected from WebSocket server');
+      });
+  
+      socket.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        setError('WebSocket connection error');
+      });
+  
+      // Cleanup on unmount
+      return () => {
+        websocketService.disconnect();
+      };
+    } catch (error) {
+      console.error('Error initializing WebSocket:', error);
+      setError('Failed to initialize real-time updates');
+    }
   };
 
   const handleTableSelect = (table) => {
@@ -144,19 +188,35 @@ const handleOfflineOrder = async (orderData) => {
   };
 
   const addItemToOrder = (menuItem) => {
-    setOrderForm(prev => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        {
-          menuItem: menuItem._id,
-          name: menuItem.name, // Store name directly
-          quantity: 1,
-          notes: '',
-          price: menuItem.price
-        }
-      ]
-    }));
+    setOrderForm(prev => {
+      // Check if item already exists in order
+      const existingItemIndex = prev.items.findIndex(item => item.menuItem === menuItem._id);
+  
+      if (existingItemIndex !== -1) {
+        // Update quantity if item exists
+        const updatedItems = [...prev.items];
+        updatedItems[existingItemIndex].quantity += 1;
+        return {
+          ...prev,
+          items: updatedItems
+        };
+      }
+  
+      // Add new item if it doesn't exist
+      return {
+        ...prev,
+        items: [
+          ...prev.items,
+          {
+            menuItem: menuItem._id,
+            name: menuItem.name,
+            quantity: 1,
+            notes: '',
+            price: menuItem.price
+          }
+        ]
+      };
+    });
   };
 
   const removeItemFromOrder = (index) => {
@@ -279,28 +339,64 @@ const handleOfflineOrder = async (orderData) => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      await updateOrder(orderId, { status: newStatus });
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to update order status');
+      }
+  
+      const updatedOrder = await response.json();
+  
+      // Emit websocket event for real-time updates
+      websocketService.emit('order:statusUpdate', {
+        orderId,
+        status: newStatus
+      });
+  
+      // Update local state
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order._id === orderId
+            ? { ...order, status: newStatus }
+            : order
+        )
+      );
     } catch (err) {
       setError(err.message);
     }
   };
-
-  // Update the order display rendering
-const renderOrderItems = (order) => {
-  return order.items.map((item, index) => {
-    // For offline orders, use the stored details
-    const itemName = order.isOffline ? 
-      item.menuItem.name : // Use stored details for offline orders
-      item.menuItem?.name; // Use populated data for online orders
-
-    return (
-      <div key={index} className="flex justify-between text-sm">
-        <span>{item.quantity}x {itemName}</span>
-        <span>${(item.price * item.quantity).toFixed(2)}</span>
-      </div>
-    );
-  });
-};
+  const renderOrderItems = (order) => {
+    return order.items.map((item, index) => {
+      // Get item name
+      const itemName = 
+        // Try to get name directly from the item
+        item.name ||
+        // Or from menuItem object if it exists
+        (item.menuItem && typeof item.menuItem === 'object' ? item.menuItem.name : null) ||
+        // Or try to find it in menuItems array
+        menuItems.find(mi => mi._id === item.menuItem)?.name ||
+        'Unknown Item';
+  
+      return (
+        <div key={index} className="flex justify-between text-sm">
+          <div className="flex items-center">
+            <span className="font-medium">{item.quantity}x</span>
+            <span className="ml-2">{itemName}</span>
+            {item.notes && (
+              <span className="ml-2 text-gray-500 italic">({item.notes})</span>
+            )}
+          </div>
+          <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+        </div>
+      );
+    });
+  };
   return (
     <div className="p-4 max-w-7xl mx-auto">
          {/* Add offline indicator */}

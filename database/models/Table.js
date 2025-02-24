@@ -22,6 +22,12 @@ const tableSchema = new mongoose.Schema({
     enum: ['indoor', 'outdoor', 'balcony'],
     default: 'indoor'
   },
+  qrCode: {
+    url: String,
+    image: String,
+    generatedAt: Date,
+    lastScanned: Date
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -33,9 +39,18 @@ const tableSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-const Table = mongoose.models.Table || mongoose.model('Table', tableSchema);
+// Pre-save middleware to update timestamps
+tableSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
 
+const Table = mongoose.models.Table || mongoose.model('Table', tableSchema);
 export default Table;

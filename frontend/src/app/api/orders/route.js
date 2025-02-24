@@ -3,10 +3,12 @@ import connectDB from '../../../../../database/connectDB';
 import Order from '../../../../../database/models/Order';
 import Menu from '../../../../../database/models/Menu';
 import Table from '../../../../../database/models/Table';
+import Customer from '../../../../../database/models/Customer';
 
 // Import all models before using populate
 import '../../../../../database/models/Menu';
 import '../../../../../database/models/Table';
+import { NextResponse } from 'next/server';
 
 // Helper function to emit WebSocket event
 const emitSocketEvent = async (event, data) => {
@@ -27,108 +29,102 @@ const emitSocketEvent = async (event, data) => {
 };
 
 
-export async function GET(request) {
-  try {
-    await connectDB();
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const tableId = searchParams.get('tableId');
-
-    let query = {};
-    if (status) query.status = status;
-    if (tableId) query.tableId = tableId;
-
-    const orders = await Order.find(query)
-      .populate({
-        path: 'tableId',
-        model: Table
-      })
-      .populate({
-        path: 'items.menuItem',
-        model: Menu
-      })
-      .sort('-createdAt');
-
-    return Response.json(orders);
-  } catch (error) {
-    console.error('GET Error:', error);
-    return Response.json({ error: error.message }, { status: 500 });
-  }
-}
-
 export async function POST(request) {
   try {
     await connectDB();
     const data = await request.json();
 
-    // Validate table exists and is available
-    const table = await Table.findById(data.tableId);
-    if (!table) {
-      return Response.json({ error: 'Table not found' }, { status: 404 });
-    }
-    if (table.status === 'occupied' && data.orderType === 'dine-in') {
-      return Response.json({ error: 'Table is already occupied' }, { status: 400 });
-    }
-
-    // Validate menu items and get their prices
-    const menuItems = await Menu.find({
-      '_id': { $in: data.items.map(item => item.menuItem) }
-    });
-
-    if (menuItems.length !== data.items.length) {
-      return Response.json({ error: 'Some menu items not found' }, { status: 400 });
+    // Validate required fields
+    if (!data.customerName || !data.customerPhone) {
+      return NextResponse.json(
+        { error: 'Customer name and phone are required' },
+        { status: 400 }
+      );
     }
 
-    // Create order items with verified prices
-    const orderItems = data.items.map(item => {
-      const menuItem = menuItems.find(mi => mi._id.toString() === item.menuItem.toString());
-      return {
+    // Find or create customer
+    let customer = await Customer.findOne({ phone: data.customerPhone });
+    
+    if (!customer) {
+      // Create new customer
+      customer = await Customer.create({
+        fullName: data.customerName,
+        phone: data.customerPhone
+      });
+    }
+
+    // Create order with customer details
+    const orderData = {
+      customerId: customer._id,
+      customerName: customer.fullName,
+      customerPhone: customer.phone,
+      tableId: data.tableId,
+      items: data.items.map(item => ({
         menuItem: item.menuItem,
         quantity: item.quantity,
-        price: menuItem.price,
-        notes: item.notes
-      };
-    });
+        price: item.price,
+        name: item.name
+      })),
+      orderType: data.orderType,
+      specialInstructions: data.specialInstructions,
+      status: 'pending',
+      totalAmount: data.totalAmount
+    };
 
-    // Calculate total amount
-    const totalAmount = orderItems.reduce((sum, item) => {
-      return sum + (item.price * item.quantity);
-    }, 0);
+    const order = await Order.create(orderData);
 
-    // Create order with calculated total
-    const order = await Order.create({
-      ...data,
-      items: orderItems,
-      totalAmount: totalAmount // Add the calculated total amount
-    });
-
-    // Update table status if dine-in
-    if (data.orderType === 'dine-in') {
-      await Table.findByIdAndUpdate(data.tableId, { 
+    // Update table status if it's a dine-in order
+    if (data.orderType === 'dine-in' && data.tableId) {
+      await Table.findByIdAndUpdate(data.tableId, {
         status: 'occupied',
         currentOrder: order._id
       });
     }
 
-    // Populate the response
-    const populatedOrder = await Order.findById(order._id)
-      .populate({
-        path: 'tableId',
-        model: Table
-      })
-      .populate({
-        path: 'items.menuItem',
-        model: Menu
-      });
-      // Emit new order event
-    await emitSocketEvent('order:new', populatedOrder);
-    return Response.json(populatedOrder, { status: 201 });
+    // Update customer statistics
+    await Customer.findByIdAndUpdate(customer._id, {
+      $inc: {
+        totalOrders: 1,
+        totalOrdersValue: data.totalAmount
+      },
+      $set: { lastOrderDate: new Date() }
+    });
+
+    return NextResponse.json(order, { status: 201 });
   } catch (error) {
-    console.error('POST Error:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('Order Creation Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create order' },
+      { status: 500 }
+    );
   }
 }
 
+export async function GET(request) {
+  try {
+    await connectDB();
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+    
+    let query = {};
+    if (status) {
+      query.status = status;
+    }
+
+    const orders = await Order.find(query)
+      .populate('customerId')
+      .populate('tableId')
+      .sort('-createdAt');
+
+    return NextResponse.json(orders);
+  } catch (error) {
+    console.error('GET Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch orders' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PUT(request) {
   try {
@@ -172,7 +168,7 @@ export async function PUT(request) {
       model: Menu
     });
  // Emit order update event
-    await emitSocketEvent('order:update', updatedOrder);
+ websocketService.emit('order:update', updatedOrder);
     return Response.json(updatedOrder);
   } catch (error) {
     console.error('PUT Error:', error);
@@ -201,7 +197,7 @@ export async function DELETE(request) {
 
     await Order.findByIdAndDelete(id);
     // Emit order delete event
-    await emitSocketEvent('order:delete', id);
+    websocketService.emit('order:delete', id);
     return Response.json({ message: 'Order deleted successfully' });
   } catch (error) {
     console.error('DELETE Error:', error);
