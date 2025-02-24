@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/Alert';
 
 export default function RiderAssignment({ 
   delivery, 

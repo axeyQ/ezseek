@@ -22,11 +22,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-      <script src="https://maps.olakrutrim.com/maps/js" />
-        <link 
-          href="https://maps.olakrutrim.com/maps/css" 
-          rel="stylesheet" 
-        />
+      <script src="https://www.unpkg.com/olamaps-web-sdk@latest/dist/olamaps-web-sdk.umd.js" />
       </head>
       <body className="bg-gray-100">
         <header className="bg-blue-600 text-white p-4">

@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import connectDB from '../../../../../../database/connectDB';
 import Rider from '../../../../../../database/models/Rider';
+import Delivery from '../../../../../../database/models/Delivery';
+
 
 export async function GET(request, { params }) {
     try {

@@ -1,4 +1,4 @@
-// database/models/Order.js
+// src/models/Order.js
 import mongoose from 'mongoose';
 
 const orderItemSchema = new mongoose.Schema({
@@ -12,36 +12,68 @@ const orderItemSchema = new mongoose.Schema({
     required: true,
     min: 1
   },
-  notes: String,
   price: {
     type: Number,
-    required: true
-  }
+    required: true,
+    min: 0
+  },
+  notes: String
 });
 
 const orderSchema = new mongoose.Schema({
-  tableId: {
+  customerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Table',
+    ref: 'Customer',
+    required: true
+  },
+  customerName: {  // Added required field
+    type: String,
+    required: true
+  },
+  customerPhone: {  // Added required field
+    type: String,
     required: true
   },
   items: [orderItemSchema],
+  orderType: {
+    type: String,
+    enum: ['dine-in', 'takeaway'],
+    required: true
+  },
+  tableId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Table'
+  },
   status: {
     type: String,
-    enum: ['pending', 'preparing', 'ready', 'served', 'cancelled'],
+    enum: ['pending', 'preparing', 'ready', 'served', 'completed', 'cancelled'],
     default: 'pending'
   },
   totalAmount: {
     type: Number,
-    required: true,
-    default: 0 // Set a default value
+    required: true
   },
   specialInstructions: String,
-  waiter: String,
-  orderType: {
+  discountType: {
     type: String,
-    enum: ['dine-in', 'takeaway'],
-    default: 'dine-in'
+    enum: ['none', 'percentage', 'fixed'],
+    default: 'none'
+  },
+  discountValue: {
+    type: Number,
+    default: 0
+  },
+  billDetails: {
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'failed'],
+      default: 'pending'
+    },
+    payment: {
+      method: String,
+      amount: Number,
+      timestamp: Date
+    }
   },
   createdAt: {
     type: Date,
@@ -50,51 +82,14 @@ const orderSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }, customerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer',
-    required: true
-  },
-  customerName: {
-    type: String,
-    required: true
-  },
-  customerPhone: {
-    type: String,
-    required: true
-  }, deliveryAddress: {
-    type: {
-      street: String,
-      city: String,
-      state: String,
-      zipCode: String,
-      landmark: String
-    },
-    required: function() {
-      return this.orderType === 'delivery';
-    }
-  },
-});
-
-// Add post-save hook to update customer stats
-orderSchema.post('save', async function(doc) {
-  try {
-    const Customer = mongoose.model('Customer');
-    await Customer.findByIdAndUpdate(doc.customerId, {
-      $inc: {
-        totalOrders: 1,
-        totalSpent: doc.totalAmount,
-        loyaltyPoints: Math.floor(doc.totalAmount) // or your points calculation logic
-      },
-      $set: {
-        lastOrderDate: doc.createdAt
-      }
-    });
-  } catch (error) {
-    console.error('Error updating customer stats:', error);
   }
 });
 
-const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
+// Update timestamp before saving
+orderSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
 
+const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 export default Order;

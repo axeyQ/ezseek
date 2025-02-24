@@ -12,7 +12,9 @@
     "aws4": "^1.13.2",
     "dotenv": "^16.4.7",
     "ioredis": "^5.5.0",
+    "mathjs": "^14.2.1",
     "mongodb": "^6.13.0",
-    "mongoose": "^8.10.1"
+    "mongoose": "^8.10.1",
+    "papaparse": "^5.5.2"
   }
 }

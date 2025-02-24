@@ -1,16 +1,27 @@
-// database/models/Customer.js
+// src/models/Customer.js
 import mongoose from 'mongoose';
 
 const addressSchema = new mongoose.Schema({
-  type: {
+  street: {
     type: String,
-    enum: ['home', 'work', 'other'],
-    default: 'home'
+    required: true,
+    trim: true
   },
-  street: String,
-  city: String,
-  state: String,
-  zipCode: String,
+  city: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  state: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  zipCode: {
+    type: String,
+    required: true,
+    trim: true
+  },
   landmark: String,
   isDefault: {
     type: Boolean,
@@ -19,50 +30,48 @@ const addressSchema = new mongoose.Schema({
 });
 
 const customerSchema = new mongoose.Schema({
-  name: {
+  fullName: {
     type: String,
-    required: true,
+    required: [true, 'Full name is required'],
     trim: true
   },
-  phone: {
+  phone: {  // Changed from contactNumber to phone
     type: String,
-    required: true,
+    required: [true, 'Phone number is required'],
     unique: true,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^\d{10}$/.test(v);
+      },
+      message: 'Please enter a valid 10-digit phone number'
+    }
   },
-  email: {
+  alternatePhone: {  // Changed from alternateNumber to alternatePhone
     type: String,
     trim: true,
-    lowercase: true
+    sparse: true,  // Allows multiple null values
+    validate: {
+      validator: function(v) {
+        return !v || /^\d{10}$/.test(v);
+      },
+      message: 'Please enter a valid 10-digit phone number'
+    }
   },
   addresses: [addressSchema],
-  loyaltyPoints: {
-    type: Number,
-    default: 0
-  },
   totalOrders: {
     type: Number,
     default: 0
   },
-  totalSpent: {
+  totalOrdersValue: {
+    type: Number,
+    default: 0
+  },
+  averageOrderValue: {
     type: Number,
     default: 0
   },
   lastOrderDate: Date,
-  preferences: {
-    dietaryRestrictions: [String],
-    favoriteItems: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Menu'
-    }],
-    preferredPaymentMethod: String
-  },
-  status: {
-    type: String,
-    enum: ['active', 'inactive', 'blocked'],
-    default: 'active'
-  },
-  notes: String,
   createdAt: {
     type: Date,
     default: Date.now
@@ -73,26 +82,25 @@ const customerSchema = new mongoose.Schema({
   }
 });
 
-// Update timestamps pre-save
+// Pre-save middleware to clean phone numbers
 customerSchema.pre('save', function(next) {
+  if (this.phone) {
+    this.phone = this.phone.replace(/\D/g, '');
+  }
+  if (this.alternatePhone) {
+    this.alternatePhone = this.alternatePhone.replace(/\D/g, '');
+  }
   this.updatedAt = new Date();
   next();
 });
 
-// Pre-save hook to ensure only one default address
+// Calculate average order value
 customerSchema.pre('save', function(next) {
-  if (this.addresses && this.addresses.length > 0) {
-    const defaultAddresses = this.addresses.filter(addr => addr.isDefault);
-    if (defaultAddresses.length > 1) {
-      // Keep only the last default address
-      for (let i = 0; i < defaultAddresses.length - 1; i++) {
-        defaultAddresses[i].isDefault = false;
-      }
-    }
+  if (this.totalOrders > 0) {
+    this.averageOrderValue = this.totalOrdersValue / this.totalOrders;
   }
   next();
 });
 
 const Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
-
 export default Customer;

@@ -19,7 +19,7 @@ export default function Sales() {
       <div>
         {orders.map((order) => (
           <div key={order.id} className="border p-4 rounded-lg mb-2">
-            <p>{order.item.name} - ${order.item.price}</p>
+            <p>{order.items.menuItem} - ${order.items.price}</p>
           </div>
         ))}
       </div>

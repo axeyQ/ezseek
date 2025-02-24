@@ -1,53 +1,41 @@
-// database/models/Rider.js
+// database/models/Table.js
 import mongoose from 'mongoose';
 
-const riderSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
-  },
-  phoneNumber: {
-    type: String,
-    required: true
-  },
-  email: {
-    type: String,
+const tableSchema = new mongoose.Schema({
+  tableNumber: {
+    type: Number,
     required: true,
     unique: true
   },
-  currentLocation: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point'
-    },
-    coordinates: {
-      type: [Number],
-      required: true
-    }
+  capacity: {
+    type: Number,
+    required: true,
+    min: 1
   },
   status: {
     type: String,
-    enum: ['AVAILABLE', 'BUSY', 'OFFLINE'],
-    default: 'OFFLINE'
+    enum: ['available', 'occupied', 'reserved', 'maintenance'],
+    default: 'available'
   },
-  currentDelivery: {
+  location: {
+    type: String,
+    enum: ['indoor', 'outdoor', 'balcony'],
+    default: 'indoor'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  currentOrder: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Delivery'
+    ref: 'Order'
   },
-  rating: {
-    type: Number,
-    default: 0
-  },
-  deliveriesCompleted: {
-    type: Number,
-    default: 0
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-riderSchema.index({ currentLocation: '2dsphere' });
+const Table = mongoose.models.Table || mongoose.model('Table', tableSchema);
 
-const Rider = mongoose.models.Rider || mongoose.model('Rider', riderSchema);
-export default Rider;
+export default Table;
